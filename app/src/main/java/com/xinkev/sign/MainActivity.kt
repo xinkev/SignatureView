@@ -30,9 +30,12 @@ import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.drawToBitmap
 import com.xinkev.sign.ui.theme.SignatureTheme
 import java.io.File
 
@@ -47,20 +50,21 @@ class MainActivity : ComponentActivity() {
                 Column(
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    SignaturePad(
-                        brushSize = 1.dp,
-                        brushColor = Color.Black,
-                        modifier = Modifier.fillMaxSize(0.9f),
-                        state = state
-                    )
+                    val sign = CaptureBitmap {
+                        SignaturePad(
+                            brushSize = 1.dp,
+                            brushColor = Color.Black,
+                            modifier = Modifier.fillMaxSize(0.9f),
+                            state = state
+                        )
+                    }
                     Row {
                         Button(onClick = state::reset, enabled = state.draws > 0) {
                             Text(text = "Reset")
                         }
                         Button(onClick = {
-                            val file = File(context.cacheDir, "hi.jpg")
-                            state.capture()
-                                .compress(Bitmap.CompressFormat.JPEG, 85, file.outputStream())
+                            val file = File(context.cacheDir, "sign.png")
+                            sign().compress(Bitmap.CompressFormat.PNG, 85, file.outputStream())
                         }) {
                             Text(text = "Save")
                         }
@@ -123,6 +127,41 @@ fun SignaturePad(
             )
         }
     }
+}
+
+@Composable
+fun CaptureBitmap(
+    content: @Composable () -> Unit,
+): () -> Bitmap {
+
+    val context = LocalContext.current
+
+    /**
+     * ComposeView that would take composable as its content
+     * Kept in remember so recomposition doesn't re-initialize it
+     **/
+    val composeView = remember { ComposeView(context) }
+
+    /**
+     * Callback function which could get latest image bitmap
+     **/
+    fun captureBitmap(): Bitmap {
+        return composeView.drawToBitmap()
+    }
+
+    /** Use Native View inside Composable **/
+    AndroidView(
+        factory = {
+            composeView.apply {
+                setContent {
+                    content.invoke()
+                }
+            }
+        }
+    )
+
+    /** returning callback to bitmap **/
+    return ::captureBitmap
 }
 
 @Stable
